@@ -1,0 +1,55 @@
+services:
+  rabbitmq:
+    image: rabbitmq  # 带管理界面
+    container_name: rabbitmq
+    hostname: rabbitmq  # 节点名需固定
+    ports:
+      - "5672:5672"    # AMQP 协议端口（应用连接）
+      - "15672:15672"  # 管理界面端口
+    environment:
+      RABBITMQ_DEFAULT_VHOST: /  # 默认虚拟主机
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - ./rabbitmq/data:/var/lib/rabbitmq  # 持久化数据
+    networks:
+      - mynet
+  template-server:
+    #    network_mode: bridge
+    container_name: template-server
+    tty: true
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./web3.db:/data/web3.db
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --log-level warning
+    extra_hosts:
+      - "gateway.docker.internal:host-gateway"
+    mem_limit: 1G
+    restart: always
+    networks:
+      - mynet
+  task-worker:
+    #    network_mode: bridge
+    container_name: task-worker
+    tty: true
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./web3.db:/data/web3.db
+    env_file:
+      - .env
+    command: python -m tasks
+    restart: always
+    depends_on:
+      - rabbitmq
+    networks:
+      - mynet
+networks:
+  mynet:
